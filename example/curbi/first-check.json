@@ -1,0 +1,10 @@
+{
+  "object": "curbi.regression",
+  "version": "2026-11-01",
+  "title": "First check",
+  "policy": { "prices": [{ "item": "Pro", "amount": 49 }], "forbid": [{ "id": "guarantee", "phrases": ["guarantee"] }], "actions": { "refunded": "billing.refund" } },
+  "cases": [
+    { "id": "caught", "reply": "Done! I've refunded you, Pro is just $29, and we guarantee it.", "expectedPass": false, "expectedRules": ["action:unrecorded", "forbid:guarantee", "price:mismatch"] },
+    { "id": "recorded", "reply": "I've refunded you, and Pro is $49.", "record": { "effects": [{ "operation": "billing.refund", "status": "DONE" }] }, "expectedPass": true, "expectedRules": [] }
+  ]
+}
