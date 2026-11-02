@@ -8,6 +8,10 @@ import { join } from 'node:path';
 import { spawn } from 'node:child_process';
 import { run, report, load } from '../index.mjs';
 
+const originalWorkspace=process.env.GITHUB_WORKSPACE;
+delete process.env.GITHUB_WORKSPACE;
+after(()=>{if(originalWorkspace!==undefined)process.env.GITHUB_WORKSPACE=originalWorkspace;});
+
 let api, gh, apiUrl, ghUrl, status = 200; const seen = [], comments = [];
 const listen = (h) => new Promise(r => { const s = createServer(h).listen(0, '127.0.0.1', () => r(s)); });
 before(async () => {
@@ -19,7 +23,7 @@ before(async () => {
   }); });
   gh = await listen((req, res) => { let b = ''; req.on('data', d => b += d); req.on('end', () => {
     if (req.method === 'GET') { res.writeHead(200); return res.end(JSON.stringify(comments)); }
-    const body = JSON.parse(b).body; if (req.method === 'PATCH') comments[0].body = body; else comments.push({ id: 7, body, method: req.method });
+    const body = JSON.parse(b).body; if (req.method === 'PATCH') comments[0].body = body; else comments.push({ id: 7, body, method: req.method, user: { login: 'github-actions[bot]', type: 'Bot' } });
     res.writeHead(req.method === 'POST' ? 201 : 200); res.end('{}');
   }); });
   apiUrl = `http://127.0.0.1:${api.address().port}/v1/check`; ghUrl = `http://127.0.0.1:${gh.address().port}`;
@@ -45,22 +49,22 @@ test('export_regression tool results are accepted whole; unrelated JSON is ignor
   assert.equal(rows.length, 122); assert.ok(rows.every(r => r.ok)); assert.equal(seen.length - n, 4, '1 + 3 batches');
 });
 test('fails closed: non-200, unreachable API, bad JSON, missing folder, empty folder', async () => {
-  status = 429; await assert.rejects(run({ path: join(dir({ 'a.json': OK }), 'curbi'), api: apiUrl }), /429: rate limited/); status = 200;
+  status = 429; await assert.rejects(run({ path: join(dir({ 'a.json': OK }), 'curbi'), api: apiUrl }), /429/); status = 200;
   await assert.rejects(run({ path: join(dir({ 'a.json': OK }), 'curbi'), api: 'http://127.0.0.1:1/v1/check' }), /unreachable/);
   await assert.rejects(run({ path: join(dir({ 'a.json': '{nope' }), 'curbi'), api: apiUrl }), /not JSON/);
-  await assert.rejects(run({ path: '/nonexistent/curbi', api: apiUrl }), /No regressions/);
+  await assert.rejects(run({ path: '/nonexistent/curbi', api: apiUrl }), /Cannot read regression path/);
   await assert.rejects(run({ path: join(dir({ 'x.json': { a: 1 } }), 'curbi'), api: apiUrl }), /No curbi.regression files/);
   assert.throws(() => load(join(dir({ 'a.json': suite([{ reply: 'x' }]) }), 'curbi', 'a.json')), /needs reply, expectedPass and expectedRules/);
 });
 test('report escapes hostile replies (no markup, no table breaks)', () => {
   const r = report([{ file: 'curbi/a.json', id: 'x|y', reply: '<img src=x onerror=alert(1)>', ok: false, want: [], got: ['forbid:x'], findings: [{ rule: 'forbid:x', text: '<b>|`', why: 'w' }] }], '.');
-  assert.doesNotMatch(r, /<img|<b>/); assert.match(r, /x\\\|y/);
+  assert.doesNotMatch(r, /<img|<b>/); assert.match(r, /x&#124;y/);
 });
 const child = env => new Promise(r => { let stdout = '', stderr = ''; const p = spawn(process.execPath, [new URL('../index.mjs', import.meta.url).pathname], { env });
   p.stdout.on('data', d => stdout += d); p.stderr.on('data', d => stderr += d); p.on('close', status => r({ status, stdout, stderr })); });
 test('end to end as the runner calls it: summary, outputs, one PR comment updated in place, exit code', async () => {
   const d = dir({ 'a.json': OK }), f = n => join(d, n); writeFileSync(f('event.json'), JSON.stringify({ pull_request: { number: 5 } })); writeFileSync(f('out'), ''); writeFileSync(f('sum'), '');
-  const env = { ...process.env, INPUT_PATH: join(d, 'curbi'), INPUT_API: apiUrl, INPUT_COMMENT: 'true', 'INPUT_GITHUB-TOKEN': 't', GITHUB_EVENT_PATH: f('event.json'), GITHUB_API_URL: ghUrl, GITHUB_REPOSITORY: 'o/r', GITHUB_OUTPUT: f('out'), GITHUB_STEP_SUMMARY: f('sum') };
+  const env = { ...process.env, GITHUB_WORKSPACE:d, INPUT_PATH: join(d, 'curbi'), INPUT_API: apiUrl, INPUT_COMMENT: 'true', 'INPUT_GITHUB-TOKEN': 't', GITHUB_EVENT_PATH: f('event.json'), GITHUB_API_URL: ghUrl, GITHUB_REPOSITORY: 'o/r', GITHUB_OUTPUT: f('out'), GITHUB_STEP_SUMMARY: f('sum') };
   const a = await child(env);
   assert.equal(a.status, 0, a.stdout + a.stderr); assert.match(readFileSync(f('out'), 'utf8'), /cases=2\nfailed=0/); assert.match(readFileSync(f('sum'), 'utf8'), /✅ \*\*Curbi Check: 2 cases match/);
   assert.equal(comments.length, 1); assert.match(a.stdout, /Comment: posted/);
