@@ -1,0 +1,26 @@
+name: test
+on:
+  push:
+  pull_request:
+permissions:
+  contents: read
+  pull-requests: write
+jobs:
+  unit:
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-node@v4
+        with:
+          node-version: 24
+      - run: node --test test/*.test.mjs
+  live:
+    # The Action itself, against the live Check API, on this repo's example regression.
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+      - id: curbi
+        uses: ./
+        with:
+          path: example/curbi
+      - run: test "${{ steps.curbi.outputs.cases }}" = 2 && test "${{ steps.curbi.outputs.failed }}" = 0

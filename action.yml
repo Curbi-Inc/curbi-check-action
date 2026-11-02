@@ -1,0 +1,30 @@
+name: Curbi Check
+description: Replay your Curbi regressions on every pull request and comment the results. Catches wrong prices, forbidden promises and unrecorded actions in AI agent replies.
+author: Curbi, Inc.
+branding:
+  icon: check-circle
+  color: blue
+inputs:
+  path:
+    description: File or directory of curbi.regression JSON files (from export_regression or the "Download this regression test" button).
+    default: curbi
+  api:
+    description: Check API endpoint.
+    default: https://api.curbi.io/v1/check
+  api-key:
+    description: Optional Curbi API key (ck_live_…). Without one, checks use the free, rate-limited tier.
+    default: ''
+  comment:
+    description: Post or update one pull request comment with the results.
+    default: 'true'
+  github-token:
+    description: Token used to comment. Needs pull-requests write permission.
+    default: ${{ github.token }}
+outputs:
+  cases:
+    description: Number of cases checked.
+  failed:
+    description: Number of cases whose verdict or rules changed.
+runs:
+  using: node24
+  main: index.mjs
