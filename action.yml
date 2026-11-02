@@ -1,5 +1,5 @@
 name: Curbi Check
-description: Replay your Curbi regressions on every pull request and comment the results. Catches wrong prices, forbidden promises and unrecorded actions in AI agent replies.
+description: Replay Curbi regression fixtures in CI and report changes in configured agent-reply checks.
 author: Curbi, Inc.
 branding:
   icon: check-circle
